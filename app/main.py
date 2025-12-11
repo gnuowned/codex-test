@@ -45,7 +45,10 @@ async def create_customer(request: Request) -> JSONResponse:
 
     conn = get_connection()
     try:
-        customer = crud.create_customer(conn, customer_payload)
+        try:
+            customer = crud.create_customer(conn, customer_payload)
+        except ValueError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=400)
         result = schemas.Customer(
             id=customer["id"],
             name=customer["name"],
@@ -92,7 +95,10 @@ async def update_customer(request: Request) -> JSONResponse:
         existing = crud.get_customer(conn, customer_id)
         if not existing:
             return JSONResponse({"detail": "Customer not found"}, status_code=404)
-        customer = crud.update_customer(conn, customer_id, update_payload)
+        try:
+            customer = crud.update_customer(conn, customer_id, update_payload)
+        except ValueError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=400)
         result = schemas.Customer(
             id=customer["id"],
             name=customer["name"],
