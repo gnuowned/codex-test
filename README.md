@@ -57,6 +57,10 @@ Errores esperados:
 - Email duplicado: 400 `{"detail":"email already exists"}`
 - Cliente no encontrado (GET/PUT/DELETE): 404 `{"detail":"Customer not found"}`
 
+## Interfaz web
+- Visita `http://localhost:8000/ui` (sirve `static/index.html`).
+- Incluye formulario para crear, leer, actualizar y borrar, además de tabla de listado.
+
 ## Pruebas
 ```bash
 pip install -r requirements.txt

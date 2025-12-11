@@ -1,9 +1,10 @@
 import json
+from pathlib import Path
 from typing import Any, Dict
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from . import crud, schemas
@@ -11,10 +12,18 @@ from .database import get_connection, init_db
 
 init_db()
 
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
 
 async def healthcheck(request: Request) -> JSONResponse:
     # Simple liveness check.
     return JSONResponse({"status": "ok"})
+
+
+async def ui(request: Request):
+    # Serve the single-page UI for CRUD actions.
+    index_path = STATIC_DIR / "index.html"
+    return FileResponse(index_path)
 
 
 async def list_customers(request: Request) -> JSONResponse:
@@ -131,6 +140,7 @@ async def delete_customer(request: Request) -> Response:
 
 routes = [
     Route("/", healthcheck, methods=["GET"]),
+    Route("/ui", ui, methods=["GET"]),
     Route("/customers", list_customers, methods=["GET"]),
     Route("/customers", create_customer, methods=["POST"]),
     Route("/customers/{customer_id:int}", read_customer, methods=["GET"]),

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clientes CRUD</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --border: #1f2937;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, #1e293b, #0f172a);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 24px; letter-spacing: 0.5px; }
+    main { padding: 0 20px 40px; display: grid; gap: 20px; max-width: 1100px; margin: 0 auto; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .grid { display: grid; gap: 12px; }
+    .actions { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 12px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+      outline: none;
+    }
+    textarea { resize: vertical; min-height: 80px; }
+    button {
+      border: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #0b1220;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s ease, filter 0.2s ease;
+    }
+    button:hover { filter: brightness(1.05); transform: translateY(-1px); }
+    .danger { background: var(--danger); color: #fff; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    th { color: var(--muted); font-weight: 600; }
+    .status { font-size: 12px; padding: 2px 8px; border-radius: 6px; background: #0ea5e9; color: #0b1220; display: inline-block; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .msg { font-size: 13px; padding: 8px 0; color: var(--muted); min-height: 20px; }
+    @media (max-width: 640px) { th, td { font-size: 13px; } header { flex-direction: column; align-items: flex-start; gap: 8px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Clientes CRUD</h1>
+    <div class="muted">Backend: /customers</div>
+  </header>
+  <main>
+    <section class="panel grid">
+      <div class="msg" id="msg"></div>
+      <div class="actions">
+        <div>
+          <label for="name">Nombre</label>
+          <input id="name" placeholder="Ada Lovelace" />
+        </div>
+        <div>
+          <label for="email">Email</label>
+          <input id="email" placeholder="ada@example.com" />
+        </div>
+        <div>
+          <label for="phone">Teléfono</label>
+          <input id="phone" placeholder="+1 555 123" />
+        </div>
+        <div>
+          <label for="status">Estado</label>
+          <select id="status">
+            <option value="active" selected>active</option>
+            <option value="inactive">inactive</option>
+          </select>
+        </div>
+        <div>
+          <label for="notes">Notas</label>
+          <textarea id="notes" placeholder="Notas del cliente"></textarea>
+        </div>
+      </div>
+      <div class="actions">
+        <button onclick="createCustomer()">Crear</button>
+        <button onclick="refresh()">Refrescar lista</button>
+      </div>
+    </section>
+
+    <section class="panel grid">
+      <div class="actions">
+        <div>
+          <label for="lookupId">ID cliente</label>
+          <input id="lookupId" type="number" min="1" placeholder="1" />
+        </div>
+      </div>
+      <div class="actions">
+        <button onclick="loadCustomer()">Leer</button>
+        <button onclick="updateCustomer()">Actualizar</button>
+        <button class="danger" onclick="deleteCustomer()">Borrar</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>Clientes</h3>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Estado</th><th>Notas</th></tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="6" class="muted">Sin datos</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const msgEl = document.getElementById("msg");
+    const tableBody = document.getElementById("tableBody");
+    const api = (path) => `${window.location.origin}${path}`;
+
+    const setMsg = (text, isError=false) => {
+      msgEl.textContent = text || "";
+      msgEl.style.color = isError ? "#ef4444" : "var(--muted)";
+    };
+
+    const readForm = () => ({
+      name: document.getElementById("name").value.trim(),
+      email: document.getElementById("email").value.trim(),
+      phone: document.getElementById("phone").value.trim(),
+      status: document.getElementById("status").value,
+      notes: document.getElementById("notes").value.trim(),
+    });
+
+    const renderRows = (items=[]) => {
+      if (!items.length) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="muted">Sin datos</td></tr>';
+        return;
+      }
+      tableBody.innerHTML = items.map(c => `
+        <tr>
+          <td>${c.id}</td>
+          <td>${c.name || ""}</td>
+          <td>${c.email || ""}</td>
+          <td>${c.phone || ""}</td>
+          <td><span class="status">${c.status}</span></td>
+          <td>${c.notes || ""}</td>
+        </tr>
+      `).join("");
+    };
+
+    async function refresh() {
+      setMsg("Cargando...");
+      try {
+        const res = await fetch(api("/customers"));
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        const data = await res.json();
+        renderRows(data);
+        setMsg(`Lista actualizada (${data.length})`);
+      } catch (err) {
+        setMsg(err.message, true);
+      }
+    }
+
+    async function createCustomer() {
+      const payload = readForm();
+      if (!payload.name || !payload.email) {
+        setMsg("Nombre y email son obligatorios", true);
+        return;
+      }
+      try {
+        const res = await fetch(api("/customers"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+        setMsg(`Creado id ${data.id}`);
+        refresh();
+      } catch (err) {
+        setMsg(err.message, true);
+      }
+    }
+
+    async function loadCustomer() {
+      const id = document.getElementById("lookupId").value;
+      if (!id) return setMsg("Ingresa un ID", true);
+      try {
+        const res = await fetch(api(`/customers/${id}`));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+        document.getElementById("name").value = data.name || "";
+        document.getElementById("email").value = data.email || "";
+        document.getElementById("phone").value = data.phone || "";
+        document.getElementById("status").value = data.status || "active";
+        document.getElementById("notes").value = data.notes || "";
+        setMsg(`Cargado id ${id}`);
+      } catch (err) {
+        setMsg(err.message, true);
+      }
+    }
+
+    async function updateCustomer() {
+      const id = document.getElementById("lookupId").value;
+      if (!id) return setMsg("Ingresa un ID", true);
+      const payload = readForm();
+      try {
+        const res = await fetch(api(`/customers/${id}`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+        setMsg(`Actualizado id ${id}`);
+        refresh();
+      } catch (err) {
+        setMsg(err.message, true);
+      }
+    }
+
+    async function deleteCustomer() {
+      const id = document.getElementById("lookupId").value;
+      if (!id) return setMsg("Ingresa un ID", true);
+      if (!confirm(`Borrar cliente ${id}?`)) return;
+      try {
+        const res = await fetch(api(`/customers/${id}`), { method: "DELETE" });
+        if (res.status === 404) {
+          const data = await res.json();
+          throw new Error(data.detail || "No encontrado");
+        }
+        if (!res.ok) throw new Error(`Error ${res.status}`);
+        setMsg(`Borrado id ${id}`);
+        refresh();
+      } catch (err) {
+        setMsg(err.message, true);
+      }
+    }
+
+    refresh();
+  </script>
+</body>
+</html>
