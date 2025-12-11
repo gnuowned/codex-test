@@ -1,8 +1,9 @@
+import os
 import sqlite3
 from pathlib import Path
 from typing import Iterator
 
-DB_PATH = Path("data.db")
+DB_PATH = Path(os.environ.get("DB_PATH", "data.db"))
 
 
 def get_connection() -> sqlite3.Connection:

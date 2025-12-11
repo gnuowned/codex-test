@@ -56,3 +56,9 @@ curl -X PUT http://localhost:8000/customers/1 \
 Errores esperados:
 - Email duplicado: 400 `{"detail":"email already exists"}`
 - Cliente no encontrado (GET/PUT/DELETE): 404 `{"detail":"Customer not found"}`
+
+## Pruebas
+```bash
+pip install -r requirements.txt
+pytest
+```
