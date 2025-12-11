@@ -14,7 +14,8 @@ def get_customer(db: Session, customer_id: int) -> Optional[models.Customer]:
 
 
 def create_customer(db: Session, payload: schemas.CustomerCreate) -> models.Customer:
-    customer = models.Customer(**payload.model_dump())
+    data = payload.validate().__dict__
+    customer = models.Customer(**data)
     db.add(customer)
     db.commit()
     db.refresh(customer)
@@ -24,8 +25,10 @@ def create_customer(db: Session, payload: schemas.CustomerCreate) -> models.Cust
 def update_customer(
     db: Session, customer: models.Customer, payload: schemas.CustomerUpdate
 ) -> models.Customer:
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(customer, field, value)
+    data = payload.validate().__dict__
+    for field, value in data.items():
+        if value is not None:
+            setattr(customer, field, value)
     db.add(customer)
     db.commit()
     db.refresh(customer)
