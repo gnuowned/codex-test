@@ -1,6 +1,6 @@
 # Customer Registry API
 
-Aplicación Starlette (Python 3.14 compatible) con SQLite para altas, bajas, cambios y consultas de clientes.
+Aplicación Starlette (Python 3.14 compatible) con SQLite y consultas directas (sin ORM) para altas, bajas, cambios y consultas de clientes.
 
 ## Campos mínimos
 - name (string)
@@ -33,5 +33,5 @@ El volumen `./data` preserva `data.db` fuera del contenedor.
 - `DELETE /customers/{id}` elimina
 
 ## Notas
-- La base se crea automáticamente (`data.db`).
-- Validación ligera manual (longitudes y email con \"@\"); ajusta reglas según negocio.
+- La base se crea automáticamente (`data.db`) sin necesidad de ORM.
+- Validación ligera manual (longitudes y email con "@"); ajusta reglas según negocio.

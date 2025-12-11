@@ -1,40 +1,58 @@
 from typing import Iterable, Optional
 
-from sqlalchemy.orm import Session
+import sqlite3
 
-from . import models, schemas
-
-
-def list_customers(db: Session) -> Iterable[models.Customer]:
-    return db.query(models.Customer).order_by(models.Customer.id.asc()).all()
+from . import schemas
 
 
-def get_customer(db: Session, customer_id: int) -> Optional[models.Customer]:
-    return db.query(models.Customer).filter(models.Customer.id == customer_id).first()
+def list_customers(conn: sqlite3.Connection) -> Iterable[sqlite3.Row]:
+    cur = conn.execute(
+        "SELECT id, name, email, phone, status, notes FROM customers ORDER BY id ASC"
+    )
+    return cur.fetchall()
 
 
-def create_customer(db: Session, payload: schemas.CustomerCreate) -> models.Customer:
+def get_customer(conn: sqlite3.Connection, customer_id: int) -> Optional[sqlite3.Row]:
+    cur = conn.execute(
+        "SELECT id, name, email, phone, status, notes FROM customers WHERE id = ?",
+        (customer_id,),
+    )
+    return cur.fetchone()
+
+
+def create_customer(conn: sqlite3.Connection, payload: schemas.CustomerCreate) -> sqlite3.Row:
     data = payload.validate().__dict__
-    customer = models.Customer(**data)
-    db.add(customer)
-    db.commit()
-    db.refresh(customer)
-    return customer
+    cur = conn.execute(
+        """
+        INSERT INTO customers (name, email, phone, status, notes)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (data["name"], data["email"], data["phone"], data["status"], data["notes"]),
+    )
+    conn.commit()
+    customer_id = cur.lastrowid
+    return get_customer(conn, customer_id)
 
 
 def update_customer(
-    db: Session, customer: models.Customer, payload: schemas.CustomerUpdate
-) -> models.Customer:
+    conn: sqlite3.Connection, customer_id: int, payload: schemas.CustomerUpdate
+) -> Optional[sqlite3.Row]:
     data = payload.validate().__dict__
+    fields = []
+    values = []
     for field, value in data.items():
         if value is not None:
-            setattr(customer, field, value)
-    db.add(customer)
-    db.commit()
-    db.refresh(customer)
-    return customer
+            fields.append(f"{field} = ?")
+            values.append(value)
+    if not fields:
+        return get_customer(conn, customer_id)
+    values.append(customer_id)
+    conn.execute(f"UPDATE customers SET {', '.join(fields)} WHERE id = ?", values)
+    conn.commit()
+    return get_customer(conn, customer_id)
 
 
-def delete_customer(db: Session, customer: models.Customer) -> None:
-    db.delete(customer)
-    db.commit()
+def delete_customer(conn: sqlite3.Connection, customer_id: int) -> bool:
+    cur = conn.execute("DELETE FROM customers WHERE id = ?", (customer_id,))
+    conn.commit()
+    return cur.rowcount > 0
