@@ -1,6 +1,8 @@
+import base64
 import json
+import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -14,6 +16,44 @@ init_db()
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
+# In-memory users/roles. Passwords can be overridden via env vars.
+USERS = {
+    "admin": {"password": os.environ.get("ADMIN_PASSWORD", "admin123"), "role": "admin"},
+    "capturista": {
+        "password": os.environ.get("CAPTURISTA_PASSWORD", "captura123"),
+        "role": "capturista",
+    },
+    "operador": {
+        "password": os.environ.get("OPERADOR_PASSWORD", "operador123"),
+        "role": "operador",
+    },
+}
+
+
+async def auth_user(request: Request) -> Dict[str, str] | JSONResponse:
+    """HTTP Basic auth; returns user dict or JSONResponse if unauthorized."""
+    header = request.headers.get("authorization")
+    if not header or not header.lower().startswith("basic "):
+        return JSONResponse(
+            {"detail": "authentication required"},
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="auth"'},
+        )
+    try:
+        decoded = base64.b64decode(header.split(" ", 1)[1]).decode()
+        username, password = decoded.split(":", 1)
+    except Exception:
+        return JSONResponse({"detail": "invalid auth header"}, status_code=401)
+
+    user = USERS.get(username)
+    if not user or user["password"] != password:
+        return JSONResponse({"detail": "invalid credentials"}, status_code=401)
+    return {"username": username, "role": user["role"]}
+
+
+def is_allowed(user: Dict[str, str], allowed_roles) -> bool:
+    return user.get("role") in allowed_roles
+
 
 async def healthcheck(request: Request) -> JSONResponse:
     # Simple liveness check.
@@ -26,8 +66,22 @@ async def ui(request: Request):
     return FileResponse(index_path)
 
 
+async def profile(request: Request) -> JSONResponse:
+    # Return authenticated user info.
+    user = await auth_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    return JSONResponse({"username": user["username"], "role": user["role"]})
+
+
 async def list_customers(request: Request) -> JSONResponse:
     # Retrieve full customer list.
+    user = await auth_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not is_allowed(user, ("admin", "capturista", "operador")):
+        return JSONResponse({"detail": "forbidden"}, status_code=403)
+
     conn = get_connection()
     try:
         customers = crud.list_customers(conn)
@@ -48,6 +102,12 @@ async def list_customers(request: Request) -> JSONResponse:
 
 
 async def create_customer(request: Request) -> JSONResponse:
+    user = await auth_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not is_allowed(user, ("admin", "capturista")):
+        return JSONResponse({"detail": "forbidden"}, status_code=403)
+
     payload: Dict[str, Any] = await request.json()
     try:
         customer_payload = schemas.CustomerCreate(**payload).validate()
@@ -75,6 +135,12 @@ async def create_customer(request: Request) -> JSONResponse:
 
 
 async def read_customer(request: Request) -> JSONResponse:
+    user = await auth_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not is_allowed(user, ("admin", "capturista", "operador")):
+        return JSONResponse({"detail": "forbidden"}, status_code=403)
+
     customer_id = int(request.path_params["customer_id"])
     conn = get_connection()
     try:
@@ -95,6 +161,12 @@ async def read_customer(request: Request) -> JSONResponse:
 
 
 async def update_customer(request: Request) -> JSONResponse:
+    user = await auth_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not is_allowed(user, ("admin", "capturista")):
+        return JSONResponse({"detail": "forbidden"}, status_code=403)
+
     customer_id = int(request.path_params["customer_id"])
     payload: Dict[str, Any] = await request.json()
     try:
@@ -126,6 +198,12 @@ async def update_customer(request: Request) -> JSONResponse:
 
 
 async def delete_customer(request: Request) -> Response:
+    user = await auth_user(request)
+    if isinstance(user, JSONResponse):
+        return user
+    if not is_allowed(user, ("admin",)):
+        return JSONResponse({"detail": "forbidden"}, status_code=403)
+
     customer_id = int(request.path_params["customer_id"])
     conn = get_connection()
     try:
@@ -141,6 +219,7 @@ async def delete_customer(request: Request) -> Response:
 routes = [
     Route("/", healthcheck, methods=["GET"]),
     Route("/ui", ui, methods=["GET"]),
+    Route("/auth/profile", profile, methods=["GET"]),
     Route("/customers", list_customers, methods=["GET"]),
     Route("/customers", create_customer, methods=["POST"]),
     Route("/customers/{customer_id:int}", read_customer, methods=["GET"]),

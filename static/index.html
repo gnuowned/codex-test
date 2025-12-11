@@ -78,6 +78,23 @@
   </header>
   <main>
     <section class="panel grid">
+      <div class="actions">
+        <div>
+          <label for="username">Usuario</label>
+          <input id="username" placeholder="admin" />
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="admin123" />
+        </div>
+        <div>
+          <label for="role">Rol</label>
+          <div id="roleLabel" class="muted">No autenticado</div>
+        </div>
+        <div style="align-self:end;">
+          <button onclick="login()">Autenticar</button>
+        </div>
+      </div>
       <div class="msg" id="msg"></div>
       <div class="actions">
         <div>
@@ -141,6 +158,10 @@
     const msgEl = document.getElementById("msg");
     const tableBody = document.getElementById("tableBody");
     const api = (path) => `${window.location.origin}${path}`;
+    const roleLabel = document.getElementById("roleLabel");
+
+    let authHeader = localStorage.getItem("authHeader") || "";
+    let currentRole = "";
 
     const setMsg = (text, isError=false) => {
       msgEl.textContent = text || "";
@@ -154,6 +175,33 @@
       status: document.getElementById("status").value,
       notes: document.getElementById("notes").value.trim(),
     });
+
+    const withAuth = (opts={}) => {
+      const headers = opts.headers ? {...opts.headers} : {};
+      if (authHeader) headers["Authorization"] = authHeader;
+      return { ...opts, headers };
+    };
+
+    async function login() {
+      const user = document.getElementById("username").value.trim();
+      const pass = document.getElementById("password").value;
+      if (!user || !pass) return setMsg("Usuario y password requeridos", true);
+      authHeader = "Basic " + btoa(`${user}:${pass}`);
+      localStorage.setItem("authHeader", authHeader);
+      try {
+        const res = await fetch(api("/auth/profile"), withAuth());
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Credenciales inválidas");
+        currentRole = data.role;
+        roleLabel.textContent = `${data.username} (${data.role})`;
+        setMsg("Sesión iniciada");
+        refresh();
+      } catch (err) {
+        setMsg(err.message, true);
+        currentRole = "";
+        roleLabel.textContent = "No autenticado";
+      }
+    }
 
     const renderRows = (items=[]) => {
       if (!items.length) {
@@ -175,7 +223,7 @@
     async function refresh() {
       setMsg("Cargando...");
       try {
-        const res = await fetch(api("/customers"));
+        const res = await fetch(api("/customers"), withAuth());
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data = await res.json();
         renderRows(data);
@@ -191,12 +239,16 @@
         setMsg("Nombre y email son obligatorios", true);
         return;
       }
+      if (currentRole && !["admin","capturista"].includes(currentRole)) {
+        setMsg("No tienes permisos para crear", true);
+        return;
+      }
       try {
-        const res = await fetch(api("/customers"), {
+        const res = await fetch(api("/customers"), withAuth({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        });
+        }));
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
         setMsg(`Creado id ${data.id}`);
@@ -209,8 +261,12 @@
     async function loadCustomer() {
       const id = document.getElementById("lookupId").value;
       if (!id) return setMsg("Ingresa un ID", true);
+      if (currentRole && !["admin","capturista"].includes(currentRole)) {
+        setMsg("No tienes permisos para actualizar", true);
+        return;
+      }
       try {
-        const res = await fetch(api(`/customers/${id}`));
+        const res = await fetch(api(`/customers/${id}`), withAuth());
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
         document.getElementById("name").value = data.name || "";
@@ -227,13 +283,17 @@
     async function updateCustomer() {
       const id = document.getElementById("lookupId").value;
       if (!id) return setMsg("Ingresa un ID", true);
+      if (currentRole && currentRole !== "admin") {
+        setMsg("No tienes permisos para borrar", true);
+        return;
+      }
       const payload = readForm();
       try {
-        const res = await fetch(api(`/customers/${id}`), {
+        const res = await fetch(api(`/customers/${id}`), withAuth({
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-        });
+        }));
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
         setMsg(`Actualizado id ${id}`);
@@ -248,7 +308,7 @@
       if (!id) return setMsg("Ingresa un ID", true);
       if (!confirm(`Borrar cliente ${id}?`)) return;
       try {
-        const res = await fetch(api(`/customers/${id}`), { method: "DELETE" });
+        const res = await fetch(api(`/customers/${id}`), withAuth({ method: "DELETE" }));
         if (res.status === 404) {
           const data = await res.json();
           throw new Error(data.detail || "No encontrado");

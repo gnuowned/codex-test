@@ -59,10 +59,22 @@ Errores esperados:
 
 ## Interfaz web
 - Visita `http://localhost:8000/ui` (sirve `static/index.html`).
-- Incluye formulario para crear, leer, actualizar y borrar, además de tabla de listado.
+- Incluye login (Basic Auth) y formulario para crear, leer, actualizar y borrar, además de tabla de listado.
 
 ## Pruebas
 ```bash
 pip install -r requirements.txt
 pytest
 ```
+
+## Autenticación y roles (RBAC)
+- Basic Auth con usuarios en memoria (configurables por env):
+  - admin / admin123 (role: admin)
+  - capturista / captura123 (role: capturista)
+  - operador / operador123 (role: operador)
+- Roles:
+  - admin: GET/POST/PUT/DELETE
+  - capturista: GET/POST/PUT
+  - operador: solo GET
+- Endpoint de verificación: `GET /auth/profile` (requiere auth) devuelve `username` y `role`.
+- Variables de entorno opcionales: `ADMIN_PASSWORD`, `CAPTURISTA_PASSWORD`, `OPERADOR_PASSWORD`, `DB_PATH`.
