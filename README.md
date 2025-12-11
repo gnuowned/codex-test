@@ -35,3 +35,24 @@ El volumen `./data` preserva `data.db` fuera del contenedor.
 ## Notas
 - La base se crea automáticamente (`data.db`) sin necesidad de ORM.
 - Validación ligera manual (longitudes y email con "@"); ajusta reglas según negocio.
+
+## Ejemplos rápidos (curl)
+- Crear:
+```bash
+curl -X POST http://localhost:8000/customers \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Ada Lovelace","email":"ada@example.com","phone":"+1-555","status":"active","notes":"VIP"}'
+```
+- Listar: `curl http://localhost:8000/customers`
+- Detalle: `curl http://localhost:8000/customers/1`
+- Actualizar: 
+```bash
+curl -X PUT http://localhost:8000/customers/1 \
+  -H "Content-Type: application/json" \
+  -d '{"status":"inactive","notes":"paused"}'
+```
+- Borrar: `curl -X DELETE http://localhost:8000/customers/1`
+
+Errores esperados:
+- Email duplicado: 400 `{"detail":"email already exists"}`
+- Cliente no encontrado (GET/PUT/DELETE): 404 `{"detail":"Customer not found"}`
