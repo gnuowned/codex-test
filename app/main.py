@@ -13,10 +13,12 @@ init_db()
 
 
 async def healthcheck(request: Request) -> JSONResponse:
+    # Simple liveness check.
     return JSONResponse({"status": "ok"})
 
 
 async def list_customers(request: Request) -> JSONResponse:
+    # Retrieve full customer list.
     conn = get_connection()
     try:
         customers = crud.list_customers(conn)
@@ -45,6 +47,7 @@ async def create_customer(request: Request) -> JSONResponse:
 
     conn = get_connection()
     try:
+        # Duplicate email returns 400 with a clear message.
         try:
             customer = crud.create_customer(conn, customer_payload)
         except ValueError as exc:
@@ -95,6 +98,7 @@ async def update_customer(request: Request) -> JSONResponse:
         existing = crud.get_customer(conn, customer_id)
         if not existing:
             return JSONResponse({"detail": "Customer not found"}, status_code=404)
+        # Propagate validation or constraint errors as 400.
         try:
             customer = crud.update_customer(conn, customer_id, update_payload)
         except ValueError as exc:
@@ -116,6 +120,7 @@ async def delete_customer(request: Request) -> Response:
     customer_id = int(request.path_params["customer_id"])
     conn = get_connection()
     try:
+        # 204 when deleted, 404 when missing.
         deleted = crud.delete_customer(conn, customer_id)
         if not deleted:
             return JSONResponse({"detail": "Customer not found"}, status_code=404)

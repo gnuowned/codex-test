@@ -6,6 +6,7 @@ from . import schemas
 
 
 def list_customers(conn: sqlite3.Connection) -> Iterable[sqlite3.Row]:
+    # Return all customers ordered by id.
     cur = conn.execute(
         "SELECT id, name, email, phone, status, notes FROM customers ORDER BY id ASC"
     )
@@ -13,6 +14,7 @@ def list_customers(conn: sqlite3.Connection) -> Iterable[sqlite3.Row]:
 
 
 def get_customer(conn: sqlite3.Connection, customer_id: int) -> Optional[sqlite3.Row]:
+    # Fetch a single customer by id.
     cur = conn.execute(
         "SELECT id, name, email, phone, status, notes FROM customers WHERE id = ?",
         (customer_id,),

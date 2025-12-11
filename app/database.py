@@ -7,12 +7,14 @@ DB_PATH = Path(os.environ.get("DB_PATH", "data.db"))
 
 
 def get_connection() -> sqlite3.Connection:
+    # Each call opens a fresh connection; callers must close it.
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db() -> None:
+    # Create table on startup if it does not exist.
     conn = get_connection()
     conn.execute(
         """
